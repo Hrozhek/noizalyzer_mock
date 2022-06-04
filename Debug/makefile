@@ -62,7 +62,7 @@ main-build: noizalyzer_mock.elf secondary-outputs
 
 # Tool invocations
 noizalyzer_mock.elf noizalyzer_mock.map: $(OBJS) $(USER_OBJS) C:\Projects\noizalyzer_mock\STM32F427VITX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "noizalyzer_mock.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Projects\noizalyzer_mock\STM32F427VITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="noizalyzer_mock.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+	arm-none-eabi-gcc -o "noizalyzer_mock.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Projects\noizalyzer_mock\STM32F427VITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="noizalyzer_mock.map" -Wl,--gc-sections -static -u_printf_float --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

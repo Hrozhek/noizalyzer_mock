@@ -59,6 +59,14 @@ static sensbus_t mag_bus = { I2C1,
 LSM9DS1_MAG_I2C_ADD_H, 0, 0 };
 static sensbus_t imu_bus = { I2C1,
 LSM9DS1_IMU_I2C_ADD_H, 0, 0 };
+
+static uint8_t * START_READING = "read\n";
+uint8_t OUT_X_GB[1] = { 0 };
+uint8_t OUT_X_GL[1] = { 0 };
+uint8_t OUT_Y_GB[1] = { 0 };
+uint8_t OUT_Y_GL[1] = { 0 };
+uint8_t OUT_Z_GB[1] = { 0 };
+uint8_t OUT_Z_GL[1] = { 0 };
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -76,7 +84,7 @@ static int32_t platform_write_mag(void *handle, uint8_t reg,
 		const uint8_t *bufp, uint16_t len);
 static int32_t platform_read_mag(void *handle, uint8_t reg, uint8_t *bufp,
 		uint16_t len);
-static void tx_com(uint8_t *tx_buffer, uint16_t len);
+static void putty_print(uint8_t *tx_buffer, uint16_t len);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -128,6 +136,7 @@ int main(void) {
 	/* USER CODE BEGIN 2 */
 
 	init_lsm9ds1();
+//	init_lsm9ds1_2();
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
@@ -285,25 +294,28 @@ void doCycle() {
 		//TODO processing logic
 	}
 	toggleLed(GPIO_PIN_SET);
-	readImu();
+	putty_print(START_READING, sizeof(START_READING));
+	for (int i = 0; i < 10; i++) {
+		readImu();
+	}
+
 	toggleLed(GPIO_PIN_RESET);
 	HAL_Delay(DELAY);
 }
-
-//void readArr() {
-//	HAL_Delay(1000);
-//}
 
 void toggleLed(GPIO_PinState status) {
 	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
 }
 
-//void writeArr() {
-//	uint8_t data[] = { "HELLO WORLD\r\n" };
-//	HAL_UART_Transmit(&huart6, data, sizeof(data), 2000);
-//}
+void init_lsm9ds1_2(void) {
+	uint8_t iNemoConfig[] = { 0xE3 };
+	HAL_I2C_Mem_Write(&hi2c1, 0xD5, 0x10, 1, iNemoConfig, 1, 10);
+}
 
 void init_lsm9ds1(void) {
+	uint8_t iNemoConfig[] = { 0xE3 };
+	HAL_I2C_Mem_Write(&hi2c1, 0xD5, 0x10, 1, iNemoConfig, 1, 10);
+
 	/* Initialize inertial sensors (IMU) driver interface */
 	dev_ctx_imu.write_reg = platform_write_imu;
 	dev_ctx_imu.read_reg = platform_read_imu;
@@ -318,19 +330,12 @@ void init_lsm9ds1(void) {
 	/* Check device ID */
 	lsm9ds1_dev_id_get(&dev_ctx_mag, &dev_ctx_imu, &whoamI);
 
-//	if (whoamI.imu != LSM9DS1_IMU_ID || whoamI.mag != LSM9DS1_MAG_ID) {
-//		while (1) {
-//			/* manage here device not found */
-//		}
-//	}
-
 	/* Restore default configuration */
 	lsm9ds1_dev_reset_set(&dev_ctx_mag, &dev_ctx_imu, PROPERTY_ENABLE);
 
-	//TODO - get stuck here
-//	do {
-//		lsm9ds1_dev_reset_get(&dev_ctx_mag, &dev_ctx_imu, &rst);
-//	} while (rst);
+	do {
+		lsm9ds1_dev_reset_get(&dev_ctx_mag, &dev_ctx_imu, &rst);
+	} while (rst);
 
 	/* Enable Block Data Update */
 	lsm9ds1_block_data_update_set(&dev_ctx_mag, &dev_ctx_imu, PROPERTY_ENABLE);
@@ -351,34 +356,51 @@ void init_lsm9ds1(void) {
 	/* Read samples in polling mode (no int) */
 }
 
+void readImu_2() {
+
+	HAL_I2C_Mem_Read(&hi2c1, 0xD5, 0x28, 1, OUT_X_GB, 1, 10);
+	HAL_I2C_Mem_Read(&hi2c1, 0xD5, 0x29, 1, OUT_X_GL, 1, 10);
+
+	HAL_I2C_Mem_Read(&hi2c1, 0xD5, 0x2A, 1, OUT_Y_GB, 1, 10);
+	HAL_I2C_Mem_Read(&hi2c1, 0xD5, 0x2B, 1, OUT_Y_GL, 1, 10);
+
+	HAL_I2C_Mem_Read(&hi2c1, 0xD5, 0x2C, 1, OUT_Z_GB, 1, 10);
+	HAL_I2C_Mem_Read(&hi2c1, 0xD5, 0x2D, 1, OUT_Z_GL, 1, 10);
+}
+
+void printImu() {
+	sprintf((char*) tx_buffer,
+//				"IMU - [X_GB]:%4.2f\t[X_GL]%4.2f\t[Y_GB]%4.2f\t[Y_GL]:%4.2f\t[Z_GB]%4.2f\t[Z_GL]%4.2f\r\n",
+			"IMU - [X_GB]:%d\t[X_GL]%d\t[Y_GB]%d\t[Y_GL]:%d\t[Z_GB]%d\t[Z_GL]%d\r\n",
+			OUT_X_GB[0], OUT_X_GL[0], OUT_Y_GB[0], OUT_Y_GL[0], OUT_Z_GB[0],
+			OUT_Z_GL[0]);
+	putty_print(tx_buffer, strlen((char const*) tx_buffer));
+}
+
 void readImu() {
 
 	/* Read device status register */
 	lsm9ds1_dev_status_get(&dev_ctx_mag, &dev_ctx_imu, &reg);
 
-//	if (reg.status_imu.xlda && reg.status_imu.gda) {
-		/* Read imu data */
-		memset(data_raw_acceleration, 0x00, 3 * sizeof(int16_t));
-		memset(data_raw_angular_rate, 0x00, 3 * sizeof(int16_t));
-		lsm9ds1_acceleration_raw_get(&dev_ctx_imu, data_raw_acceleration);
-		lsm9ds1_angular_rate_raw_get(&dev_ctx_imu, data_raw_angular_rate);
-		acceleration_mg[0] = lsm9ds1_from_fs4g_to_mg(data_raw_acceleration[0]);
-		acceleration_mg[1] = lsm9ds1_from_fs4g_to_mg(data_raw_acceleration[1]);
-		acceleration_mg[2] = lsm9ds1_from_fs4g_to_mg(data_raw_acceleration[2]);
-		angular_rate_mdps[0] = lsm9ds1_from_fs2000dps_to_mdps(
-				data_raw_angular_rate[0]);
-		angular_rate_mdps[1] = lsm9ds1_from_fs2000dps_to_mdps(
-				data_raw_angular_rate[1]);
-		angular_rate_mdps[2] = lsm9ds1_from_fs2000dps_to_mdps(
-				data_raw_angular_rate[2]);
-		sprintf((char*) tx_buffer,
-				"IMU - [mg]:%4.2f\t%4.2f\t%4.2f\t[mdps]:%4.2f\t%4.2f\t%4.2f\r\n",
-				acceleration_mg[0], acceleration_mg[1], acceleration_mg[2],
-				angular_rate_mdps[0], angular_rate_mdps[1],
-				angular_rate_mdps[2]);
-		tx_com(tx_buffer, strlen((char const*) tx_buffer));
-//	}
-
+	/* Read imu data */
+	memset(data_raw_acceleration, 0x00, 3 * sizeof(int16_t));
+	memset(data_raw_angular_rate, 0x00, 3 * sizeof(int16_t));
+	lsm9ds1_acceleration_raw_get(&dev_ctx_imu, data_raw_acceleration);
+	lsm9ds1_angular_rate_raw_get(&dev_ctx_imu, data_raw_angular_rate);
+	acceleration_mg[0] = lsm9ds1_from_fs4g_to_mg(data_raw_acceleration[0]);
+	acceleration_mg[1] = lsm9ds1_from_fs4g_to_mg(data_raw_acceleration[1]);
+	acceleration_mg[2] = lsm9ds1_from_fs4g_to_mg(data_raw_acceleration[2]);
+	angular_rate_mdps[0] = lsm9ds1_from_fs2000dps_to_mdps(
+			data_raw_angular_rate[0]);
+	angular_rate_mdps[1] = lsm9ds1_from_fs2000dps_to_mdps(
+			data_raw_angular_rate[1]);
+	angular_rate_mdps[2] = lsm9ds1_from_fs2000dps_to_mdps(
+			data_raw_angular_rate[2]);
+	sprintf((char*) tx_buffer,
+			"IMU - [mg]:%4.2f\t%4.2f\t%4.2f\t[mdps]:%4.2f\t%4.2f\t%4.2f\r\n",
+			acceleration_mg[0], acceleration_mg[1], acceleration_mg[2],
+			angular_rate_mdps[0], angular_rate_mdps[1], angular_rate_mdps[2]);
+	putty_print(tx_buffer, strlen((char const*) tx_buffer));
 }
 
 /*
@@ -460,13 +482,13 @@ static int32_t platform_read_mag(void *handle, uint8_t reg, uint8_t *bufp,
 }
 
 /*
- * @brief  Send buffer to console (platform dependent)
+ * @brief  Send buffer to console
  *
  * @param  tx_buffer     buffer to transmit
  * @param  len           number of byte to send
  *
  */
-static void tx_com(uint8_t *tx_buffer, uint16_t len) {
+static void putty_print(uint8_t *tx_buffer, uint16_t len) {
 	HAL_UART_Transmit(&huart6, tx_buffer, len, 1000);
 }
 
